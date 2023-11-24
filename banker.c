@@ -39,12 +39,29 @@ void readCustomerData(const char* filename) {
     }
 
     char line[100];
-    while (fgets(line, sizeof(line), file)) {
-        printf("Customer Data: %s", line);
+    int customerIndex = 0;
+    while (fgets(line, sizeof(line), file) && customerIndex < MAX_CUSTOMERS) {
+        // Reset resource values for each customer
+        for (int i = 0; i < MAX_RESOURCES; i++) {
+            max[customerIndex][i] = 0;
+        }
+
+        // Parse and assign resource values
+        int numParsed = sscanf(line, "%d,%d,%d,%d,%d",
+            &max[customerIndex][0], &max[customerIndex][1],
+            &max[customerIndex][2], &max[customerIndex][3],
+            &max[customerIndex][4]);
+        
+        if (numParsed < 3) { // Ensure at least 3 values are parsed
+            fprintf(stderr, "Invalid format in customer data: %s\n", line);
+        }
+        customerIndex++;
     }
 
     fclose(file);
 }
+
+
 
 void readCommandData(const char* filename, int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
     FILE *file = fopen(filename, "r");
@@ -175,32 +192,23 @@ void releaseResources(int customerNum, int release[], int numberOfResources, int
 
 void outputSystemState(int numberOfResources, int numberOfCustomers, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
     printf("Current System State:\n");
+
     printf("AVAILABLE RESOURCES:\n");
     for (int i = 0; i < numberOfResources; i++) {
         printf("Resource %d: %d\n", i, available[i]);
     }
 
-    printf("\nMAXIMUM DEMAND:\n");
+    printf("\nMAXIMUM DEMAND | CURRENT ALLOCATION | CURRENT NEED:\n");
     for (int i = 0; i < numberOfCustomers; i++) {
         printf("Customer %d: ", i);
         for (int j = 0; j < numberOfResources; j++) {
             printf("%d ", max[i][j]);
         }
-        printf("\n");
-    }
-
-    printf("\nCURRENT ALLOCATION:\n");
-    for (int i = 0; i < numberOfCustomers; i++) {
-        printf("Customer %d: ", i);
+        printf("| ");
         for (int j = 0; j < numberOfResources; j++) {
             printf("%d ", alloc[i][j]);
         }
-        printf("\n");
-    }
-
-    printf("\nCURRENT NEED:\n");
-    for (int i = 0; i < numberOfCustomers; i++) {
-        printf("Customer %d: ", i);
+        printf("| ");
         for (int j = 0; j < numberOfResources; j++) {
             printf("%d ", need[i][j]);
         }
@@ -208,18 +216,25 @@ void outputSystemState(int numberOfResources, int numberOfCustomers, int availab
     }
 }
 
+void calculateNeedArray() {
+    for (int i = 0; i < numberOfCustomers; i++) {
+        for (int j = 0; j < numberOfResources; j++) {
+            need[i][j] = max[i][j] - alloc[i][j];
+        }
+    }
+}
+
+
+
 int main(int argc, char *argv[]) {
-    // Example of initial state for available resources
     for (int i = 0; i < MAX_RESOURCES; i++) {
-        available[i] = 10; // Adjust as per your project requirements
+        available[i] = 10;
     }
 
-    // Initialize alloc array to 0 (already done in global declaration)
-
-    // Read initial customer data to set up the max array
     readCustomerData("customer.txt");
+    calculateNeedArray();
 
-    // Initialize need array based on max and alloc
+
     for (int i = 0; i < numberOfCustomers; i++) {
         for (int j = 0; j < numberOfResources; j++) {
             need[i][j] = max[i][j] - alloc[i][j];

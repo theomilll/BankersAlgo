@@ -142,21 +142,16 @@ bool isSafeState(int numberOfResources, int numberOfCustomers, int available[], 
 
 void processRequest(int customerNum, int request[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
     for (int i = 0; i < numberOfResources; i++) {
-        if (request[i] < 0) {
-            printf("Invalid request from customer %d: Negative values are not allowed.\n", customerNum);
-            return;
-        }
         if (request[i] > need[customerNum][i]) {
-            printf("Request cannot be granted for customer %d: Request exceeds the customer's need.\n", customerNum);
+            printf("The customer %d request %d %d %d was denied because it exceeds its maximum need\n", customerNum, request[0], request[1], request[2]);
             return;
         }
         if (request[i] > available[i]) {
-            printf("Request cannot be granted for customer %d: Insufficient available resources.\n", customerNum);
+            printf("The resources are not enough for customer %d request %d %d %d\n", customerNum, request[0], request[1], request[2]);
             return;
         }
     }
 
-    // Tentatively allocate resources
     for (int i = 0; i < numberOfResources; i++) {
         available[i] -= request[i];
         alloc[customerNum][i] += request[i];
@@ -164,37 +159,32 @@ void processRequest(int customerNum, int request[], int numberOfResources, int a
     }
 
     if (!isSafeState(numberOfResources, MAX_CUSTOMERS, available, max, alloc, need)) {
-        // Rollback if not safe
         for (int i = 0; i < numberOfResources; i++) {
             available[i] += request[i];
             alloc[customerNum][i] -= request[i];
             need[customerNum][i] += request[i];
         }
-        printf("Request from customer %d leads to an unsafe state and cannot be granted.\n", customerNum);
+        printf("The customer %d request %d %d %d was denied because it results in an unsafe state\n", customerNum, request[0], request[1], request[2]);
     } else {
-        printf("Request from customer %d has been granted.\n", customerNum);
+        printf("Allocate to customer %d the resources %d %d %d\n", customerNum, request[0], request[1], request[2]);
     }
 }
 
 void releaseResources(int customerNum, int release[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES]) {
-    bool validRelease = true;
     for (int i = 0; i < numberOfResources; i++) {
-        if (release[i] < 0 || release[i] > alloc[customerNum][i]) {
-            printf("Release request from customer %d exceeds allocation for resource %d.\n", customerNum, i);
-            validRelease = false;
+        if (release[i] > alloc[customerNum][i]) {
+            printf("The customer %d release %d %d %d was denied because it exceeds its maximum allocation\n", customerNum, release[0], release[1], release[2]);
+            return;
         }
     }
 
-    if (validRelease) {
-        for (int i = 0; i < numberOfResources; i++) {
-            available[i] += release[i];
-            alloc[customerNum][i] -= release[i];
-        }
-        printf("Resources released from customer %d.\n", customerNum);
-    } else {
-        printf("Release request from customer %d is partially or entirely invalid and has not been processed.\n", customerNum);
+    for (int i = 0; i < numberOfResources; i++) {
+        available[i] += release[i];
+        alloc[customerNum][i] -= release[i];
     }
+    printf("Release from customer %d the resources %d %d %d\n", customerNum, release[0], release[1], release[2]);
 }
+
 
 
 void outputSystemState(int numberOfResources, int numberOfCustomers, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {

@@ -13,7 +13,6 @@ int need[MAX_CUSTOMERS][MAX_RESOURCES];
 int numberOfResources;
 int numberOfCustomers = MAX_CUSTOMERS;
 
-// Function declarations
 int* parseCommandLineArguments(int argc, char *argv[], int *numberOfResources);
 void readCustomerData(const char* filename);
 void readCommandData(const char* filename, int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]);
@@ -41,18 +40,16 @@ void readCustomerData(const char* filename) {
     char line[100];
     int customerIndex = 0;
     while (fgets(line, sizeof(line), file) && customerIndex < MAX_CUSTOMERS) {
-        // Reset resource values for each customer
         for (int i = 0; i < MAX_RESOURCES; i++) {
             max[customerIndex][i] = 0;
         }
 
-        // Parse and assign resource values
         int numParsed = sscanf(line, "%d,%d,%d,%d,%d",
             &max[customerIndex][0], &max[customerIndex][1],
             &max[customerIndex][2], &max[customerIndex][3],
             &max[customerIndex][4]);
         
-        if (numParsed < 3) { // Ensure at least 3 values are parsed
+        if (numParsed < 3) {
             fprintf(stderr, "Invalid format in customer data: %s\n", line);
         }
         customerIndex++;
@@ -75,18 +72,17 @@ void readCommandData(const char* filename, int numberOfResources, int available[
     
     while (fgets(line, sizeof(line), file)) {
         if (sscanf(line, "%s", commandStr) != 1) {
-            continue; // Invalid line format
+            continue;
         }
 
         if (strcmp(commandStr, "*") == 0) {
-            // Handle the '*' command here, if necessary
             outputSystemState(numberOfResources, MAX_CUSTOMERS, available, alloc, max, need);
             continue;
         }
 
         if (sscanf(line, "%s %d %d %d %d", commandStr, &customerNum, &request[0], &request[1], &request[2]) != 5) {
             fprintf(stderr, "Invalid command format in line: %s\n", line);
-            continue; // Invalid command format
+            continue;
         }
 
         if (strcmp(commandStr, "RQ") == 0) {
@@ -145,30 +141,26 @@ bool isSafeState(int numberOfResources, int numberOfCustomers, int available[], 
 }
 
 void processRequest(int customerNum, int request[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
-    // Check for negative or excessive resource requests
     for (int i = 0; i < numberOfResources; i++) {
-        if (request[i] < 0 || request[i] > need[customerNum][i]) {
-            printf("Invalid or unsatisfiable request from customer %d\n", customerNum);
+        if (request[i] < 0 || request[i] > need[customerNum][i] || request[i] > available[i]) {
+            printf("Request cannot be granted for customer %d\n", customerNum);
             return;
         }
     }
 
-    // Tentatively allocate requested resources
     for (int i = 0; i < numberOfResources; i++) {
         available[i] -= request[i];
         alloc[customerNum][i] += request[i];
         need[customerNum][i] -= request[i];
     }
 
-    // Check if the new state is safe
     if (!isSafeState(numberOfResources, MAX_CUSTOMERS, available, max, alloc, need)) {
-        // Roll back the allocation if not safe
         for (int i = 0; i < numberOfResources; i++) {
             available[i] += request[i];
             alloc[customerNum][i] -= request[i];
             need[customerNum][i] += request[i];
         }
-        printf("The request from customer %d leaves the system in an unsafe state\n", customerNum);
+        printf("Cannot grant request for customer %d as it leads to an unsafe state\n", customerNum);
     } else {
         printf("Request from customer %d has been granted\n", customerNum);
     }
@@ -176,8 +168,8 @@ void processRequest(int customerNum, int request[], int numberOfResources, int a
 
 void releaseResources(int customerNum, int release[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES]) {
     for (int i = 0; i < numberOfResources; i++) {
-        if (release[i] > alloc[customerNum][i]) {
-            printf("Release request exceeds the current allocation for customer %d\n", customerNum);
+        if (release[i] < 0 || release[i] > alloc[customerNum][i]) {
+            printf("Release request exceeds allocation for customer %d\n", customerNum);
             return;
         }
     }
@@ -190,31 +182,34 @@ void releaseResources(int customerNum, int release[], int numberOfResources, int
     printf("Resources released from customer %d\n", customerNum);
 }
 
+
 void outputSystemState(int numberOfResources, int numberOfCustomers, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
-    printf("Current System State:\n");
+    printf("\nCurrent System State:\n");
 
-    printf("AVAILABLE RESOURCES:\n");
+    printf("AVAILABLE RESOURCES: ");
     for (int i = 0; i < numberOfResources; i++) {
-        printf("Resource %d: %d\n", i, available[i]);
+        printf("%d ", available[i]);
     }
+    printf("\n\n");
 
-    printf("\nMAXIMUM DEMAND | CURRENT ALLOCATION | CURRENT NEED:\n");
+    printf("CUSTOMER | MAXIMUM DEMAND | CURRENT ALLOCATION | CURRENT NEED\n");
     for (int i = 0; i < numberOfCustomers; i++) {
-        printf("Customer %d: ", i);
+        printf("   %d    |    ", i);
         for (int j = 0; j < numberOfResources; j++) {
             printf("%d ", max[i][j]);
         }
-        printf("| ");
+        printf("   |    ");
         for (int j = 0; j < numberOfResources; j++) {
             printf("%d ", alloc[i][j]);
         }
-        printf("| ");
+        printf("   |    ");
         for (int j = 0; j < numberOfResources; j++) {
             printf("%d ", need[i][j]);
         }
         printf("\n");
     }
 }
+
 
 void calculateNeedArray() {
     for (int i = 0; i < numberOfCustomers; i++) {
@@ -227,20 +222,23 @@ void calculateNeedArray() {
 
 
 int main(int argc, char *argv[]) {
-    for (int i = 0; i < MAX_RESOURCES; i++) {
-        available[i] = 10;
+    int *resourceArray = parseCommandLineArguments(argc, argv, &numberOfResources);
+    for (int i = 0; i < numberOfResources; i++) {
+        available[i] = resourceArray[i];
     }
+    free(resourceArray);
 
     readCustomerData("customer.txt");
-    calculateNeedArray();
-
 
     for (int i = 0; i < numberOfCustomers; i++) {
         for (int j = 0; j < numberOfResources; j++) {
             need[i][j] = max[i][j] - alloc[i][j];
         }
     }
+
     readCommandData("commands.txt", numberOfResources, available, alloc, max, need);
+
+    outputSystemState(numberOfResources, numberOfCustomers, available, alloc, max, need);
 
     return 0;
 }

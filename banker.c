@@ -142,12 +142,21 @@ bool isSafeState(int numberOfResources, int numberOfCustomers, int available[], 
 
 void processRequest(int customerNum, int request[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
     for (int i = 0; i < numberOfResources; i++) {
-        if (request[i] < 0 || request[i] > need[customerNum][i] || request[i] > available[i]) {
-            printf("Request cannot be granted for customer %d\n", customerNum);
+        if (request[i] < 0) {
+            printf("Invalid request from customer %d: Negative values are not allowed.\n", customerNum);
+            return;
+        }
+        if (request[i] > need[customerNum][i]) {
+            printf("Request cannot be granted for customer %d: Request exceeds the customer's need.\n", customerNum);
+            return;
+        }
+        if (request[i] > available[i]) {
+            printf("Request cannot be granted for customer %d: Insufficient available resources.\n", customerNum);
             return;
         }
     }
 
+    // Tentatively allocate resources
     for (int i = 0; i < numberOfResources; i++) {
         available[i] -= request[i];
         alloc[customerNum][i] += request[i];
@@ -155,31 +164,36 @@ void processRequest(int customerNum, int request[], int numberOfResources, int a
     }
 
     if (!isSafeState(numberOfResources, MAX_CUSTOMERS, available, max, alloc, need)) {
+        // Rollback if not safe
         for (int i = 0; i < numberOfResources; i++) {
             available[i] += request[i];
             alloc[customerNum][i] -= request[i];
             need[customerNum][i] += request[i];
         }
-        printf("Cannot grant request for customer %d as it leads to an unsafe state\n", customerNum);
+        printf("Request from customer %d leads to an unsafe state and cannot be granted.\n", customerNum);
     } else {
-        printf("Request from customer %d has been granted\n", customerNum);
+        printf("Request from customer %d has been granted.\n", customerNum);
     }
 }
 
 void releaseResources(int customerNum, int release[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES]) {
+    bool validRelease = true;
     for (int i = 0; i < numberOfResources; i++) {
         if (release[i] < 0 || release[i] > alloc[customerNum][i]) {
-            printf("Release request exceeds allocation for customer %d\n", customerNum);
-            return;
+            printf("Release request from customer %d exceeds allocation for resource %d.\n", customerNum, i);
+            validRelease = false;
         }
     }
 
-    for (int i = 0; i < numberOfResources; i++) {
-        available[i] += release[i];
-        alloc[customerNum][i] -= release[i];
+    if (validRelease) {
+        for (int i = 0; i < numberOfResources; i++) {
+            available[i] += release[i];
+            alloc[customerNum][i] -= release[i];
+        }
+        printf("Resources released from customer %d.\n", customerNum);
+    } else {
+        printf("Release request from customer %d is partially or entirely invalid and has not been processed.\n", customerNum);
     }
-
-    printf("Resources released from customer %d\n", customerNum);
 }
 
 
@@ -219,27 +233,24 @@ void calculateNeedArray() {
     }
 }
 
-
-
 int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        printf("Error: Insufficient command line arguments provided.\n");
+        return 1;
+    }
+
     int *resourceArray = parseCommandLineArguments(argc, argv, &numberOfResources);
+
     for (int i = 0; i < numberOfResources; i++) {
         available[i] = resourceArray[i];
     }
-    free(resourceArray);
 
     readCustomerData("customer.txt");
-
-    for (int i = 0; i < numberOfCustomers; i++) {
-        for (int j = 0; j < numberOfResources; j++) {
-            need[i][j] = max[i][j] - alloc[i][j];
-        }
-    }
-
+    calculateNeedArray();
     readCommandData("commands.txt", numberOfResources, available, alloc, max, need);
 
-    outputSystemState(numberOfResources, numberOfCustomers, available, alloc, max, need);
-
+    free(resourceArray);
     return 0;
 }
+
 

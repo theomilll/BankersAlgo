@@ -12,6 +12,8 @@ int max[MAX_CUSTOMERS][MAX_RESOURCES];
 int need[MAX_CUSTOMERS][MAX_RESOURCES];
 int numberOfResources;
 int numberOfCustomers = MAX_CUSTOMERS;
+int actualNumberOfCustomers = 0;
+
 
 int* parseCommandLineArguments(int argc, char *argv[], int *numberOfResources);
 void readCustomerData(const char* filename);
@@ -141,13 +143,12 @@ bool isSafeState(int numberOfResources, int numberOfCustomers, int available[], 
 }
 
 void processRequest(int customerNum, int request[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
+    FILE *file = fopen("result.txt", "a"); // Append mode
+
     for (int i = 0; i < numberOfResources; i++) {
-        if (request[i] > need[customerNum][i]) {
-            printf("The customer %d request %d %d %d was denied because it exceeds its maximum need\n", customerNum, request[0], request[1], request[2]);
-            return;
-        }
-        if (request[i] > available[i]) {
-            printf("The resources are not enough for customer %d request %d %d %d\n", customerNum, request[0], request[1], request[2]);
+        if (request[i] < 0 || request[i] > need[customerNum][i] || request[i] > available[i]) {
+            fprintf(file, "The customer %d request cannot be granted.\n", customerNum);
+            fclose(file);
             return;
         }
     }
@@ -164,55 +165,79 @@ void processRequest(int customerNum, int request[], int numberOfResources, int a
             alloc[customerNum][i] -= request[i];
             need[customerNum][i] += request[i];
         }
-        printf("The customer %d request %d %d %d was denied because it results in an unsafe state\n", customerNum, request[0], request[1], request[2]);
+        fprintf(file, "The request from customer %d cannot be granted as it leads to an unsafe state.\n", customerNum);
     } else {
-        printf("Allocate to customer %d the resources %d %d %d\n", customerNum, request[0], request[1], request[2]);
+        fprintf(file, "Allocate to customer %d the resources", customerNum);
+        for (int i = 0; i < numberOfResources; i++) {
+            fprintf(file, " %d", request[i]);
+        }
+        fprintf(file, "\n");
     }
+
+    fclose(file);
 }
 
+
 void releaseResources(int customerNum, int release[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES]) {
+    FILE *file = fopen("result.txt", "a"); // Append mode
+
     for (int i = 0; i < numberOfResources; i++) {
-        if (release[i] > alloc[customerNum][i]) {
-            printf("The customer %d release %d %d %d was denied because it exceeds its maximum allocation\n", customerNum, release[0], release[1], release[2]);
+        if (release[i] < 0 || release[i] > alloc[customerNum][i]) {
+            fprintf(file, "Release request from customer %d cannot be granted.\n", customerNum);
+            fclose(file);
             return;
         }
     }
 
+    fprintf(file, "Release from customer %d the resources", customerNum);
     for (int i = 0; i < numberOfResources; i++) {
+        fprintf(file, " %d", release[i]);
         available[i] += release[i];
         alloc[customerNum][i] -= release[i];
     }
-    printf("Release from customer %d the resources %d %d %d\n", customerNum, release[0], release[1], release[2]);
+    fprintf(file, "\n");
+
+    fclose(file);
 }
+
 
 
 
 void outputSystemState(int numberOfResources, int numberOfCustomers, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
-    printf("\nCurrent System State:\n");
+    FILE *fp = fopen("result.txt", "a"); // Open in append mode
+    if (fp == NULL) {
+        fprintf(stderr, "Error opening file result.txt\n");
+        return;
+    }
 
-    printf("AVAILABLE RESOURCES: ");
+    fprintf(fp, "\nCurrent System State:\n");
+
+    fprintf(fp, "AVAILABLE RESOURCES: ");
     for (int i = 0; i < numberOfResources; i++) {
-        printf("%d ", available[i]);
+        fprintf(fp, "%d ", available[i]);
     }
-    printf("\n\n");
+    fprintf(fp, "\n\n");
 
-    printf("CUSTOMER | MAXIMUM DEMAND | CURRENT ALLOCATION | CURRENT NEED\n");
+    fprintf(fp, "CUSTOMER | MAXIMUM DEMAND | CURRENT ALLOCATION | CURRENT NEED\n");
     for (int i = 0; i < numberOfCustomers; i++) {
-        printf("   %d    |    ", i);
+        fprintf(fp, "   %d    |    ", i);
         for (int j = 0; j < numberOfResources; j++) {
-            printf("%d ", max[i][j]);
+            fprintf(fp, "%d ", max[i][j]);
         }
-        printf("   |    ");
+        fprintf(fp, "   |    ");
         for (int j = 0; j < numberOfResources; j++) {
-            printf("%d ", alloc[i][j]);
+            fprintf(fp, "%d ", alloc[i][j]);
         }
-        printf("   |    ");
+        fprintf(fp, "   |    ");
         for (int j = 0; j < numberOfResources; j++) {
-            printf("%d ", need[i][j]);
+            fprintf(fp, "%d ", need[i][j]);
         }
-        printf("\n");
+        fprintf(fp, "\n");
     }
+
+    fclose(fp);
 }
+
 
 
 void calculateNeedArray() {

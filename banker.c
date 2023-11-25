@@ -40,27 +40,26 @@ void readCustomerData(const char* filename) {
     }
 
     char line[100];
-    int customerIndex = 0;
-    while (fgets(line, sizeof(line), file) && customerIndex < MAX_CUSTOMERS) {
+    actualNumberOfCustomers = 0;
+    while (fgets(line, sizeof(line), file) && actualNumberOfCustomers < MAX_CUSTOMERS) {
         for (int i = 0; i < MAX_RESOURCES; i++) {
-            max[customerIndex][i] = 0;
+            max[actualNumberOfCustomers][i] = 0;
         }
 
         int numParsed = sscanf(line, "%d,%d,%d,%d,%d",
-            &max[customerIndex][0], &max[customerIndex][1],
-            &max[customerIndex][2], &max[customerIndex][3],
-            &max[customerIndex][4]);
+            &max[actualNumberOfCustomers][0], &max[actualNumberOfCustomers][1],
+            &max[actualNumberOfCustomers][2], &max[actualNumberOfCustomers][3],
+            &max[actualNumberOfCustomers][4]);
         
         if (numParsed < 3) {
             fprintf(stderr, "Invalid format in customer data: %s\n", line);
+        } else {
+            actualNumberOfCustomers++;
         }
-        customerIndex++;
     }
 
     fclose(file);
 }
-
-
 
 void readCommandData(const char* filename, int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
     FILE *file = fopen(filename, "r");
@@ -200,10 +199,7 @@ void releaseResources(int customerNum, int release[], int numberOfResources, int
     fclose(file);
 }
 
-
-
-
-void outputSystemState(int numberOfResources, int numberOfCustomers, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
+void outputSystemState(int numberOfResources, int actualNumberOfCustomers, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
     FILE *fp = fopen("result.txt", "a"); // Open in append mode
     if (fp == NULL) {
         fprintf(stderr, "Error opening file result.txt\n");
@@ -219,7 +215,7 @@ void outputSystemState(int numberOfResources, int numberOfCustomers, int availab
     fprintf(fp, "\n\n");
 
     fprintf(fp, "CUSTOMER | MAXIMUM DEMAND | CURRENT ALLOCATION | CURRENT NEED\n");
-    for (int i = 0; i < numberOfCustomers; i++) {
+    for (int i = 0; i < actualNumberOfCustomers; i++) {
         fprintf(fp, "   %d    |    ", i);
         for (int j = 0; j < numberOfResources; j++) {
             fprintf(fp, "%d ", max[i][j]);
@@ -237,8 +233,6 @@ void outputSystemState(int numberOfResources, int numberOfCustomers, int availab
 
     fclose(fp);
 }
-
-
 
 void calculateNeedArray() {
     for (int i = 0; i < numberOfCustomers; i++) {

@@ -2,264 +2,402 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <limits.h>
+#include <unistd.h>
+#include <errno.h>
 
-#define MAX_CUSTOMERS 10
-#define MAX_RESOURCES 5
+int *available; // Array to track available amount of each resource
+int **maximum; // Maximum demand of each customer
+int **allocation; // Amount currently allocated to each customer
+int **need; // Remaining needs of each customer
+int NUMBER_OF_RESOURCES;
+int NUMBER_OF_CUSTOMERS;
 
-int available[MAX_RESOURCES];
-int alloc[MAX_CUSTOMERS][MAX_RESOURCES] = {0};
-int max[MAX_CUSTOMERS][MAX_RESOURCES];
-int need[MAX_CUSTOMERS][MAX_RESOURCES];
-int numberOfResources;
-int numberOfCustomers = MAX_CUSTOMERS;
-int actualNumberOfCustomers = 0;
+FILE *output_file;
 
+void initialize_system_state(char **argv);
+void read_customer_file(const char *filename);
+bool is_request_valid(int customer_id, int request[]);
+bool is_enough_resources(int request[]);
+bool is_release_valid(int customer_id, int release[]);
+bool is_safe_state();
+void process_request(int customer_id, int request[]);
+void process_command(const char *command);
+void process_release(int customer_id, int release[]);
+void read_commands_file(const char *filename);
+bool is_number(const char *str);
+int count_customers(const char *filename);
+void print_system_state();
 
-int* parseCommandLineArguments(int argc, char *argv[], int *numberOfResources);
-void readCustomerData(const char* filename);
-void readCommandData(const char* filename, int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]);
-bool isSafeState(int numberOfResources, int numberOfCustomers, int available[], int max[][MAX_RESOURCES], int alloc[][MAX_RESOURCES], int need[][MAX_RESOURCES]);
-void processRequest(int customerNumber, int requestArray[], int numberOfResources, int availableResources[], int allocatedResources[][MAX_RESOURCES], int maxDemand[][MAX_RESOURCES], int currentNeed[][MAX_RESOURCES]);
-void releaseResources(int customerNum, int release[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES]);
-void outputSystemState(int numberOfResources, int numberOfCustomers, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]);
-
-int* parseCommandLineArguments(int argc, char *argv[], int *numberOfResources) {
-    *numberOfResources = argc - 1;
-    int *resources = malloc(*numberOfResources * sizeof(int));
-    for (int i = 1; i < argc; i++) {
-        resources[i-1] = atoi(argv[i]);
+int count_customers(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Failed to open customer.txt for counting");
+        exit(EXIT_FAILURE);
     }
-    return resources;
+
+    int count = 0;
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), file) != NULL) {
+        count++;
+    }
+
+    fclose(file);
+    return count;
 }
 
-void readCustomerData(const char* filename) {
-    FILE *file = fopen(filename, "r");
-    if (!file) {
-        fprintf(stderr, "Failed to open %s for reading\n", filename);
-        return;
+void initialize_system_state(char **argv) {
+    // Allocate memory for available resources
+    available = (int *)malloc(NUMBER_OF_RESOURCES * sizeof(int));
+    if (available == NULL) {
+        perror("Failed to allocate memory for available resources");
+        exit(EXIT_FAILURE);
     }
 
-    char line[100];
-    actualNumberOfCustomers = 0;
-    while (fgets(line, sizeof(line), file) && actualNumberOfCustomers < MAX_CUSTOMERS) {
-        for (int i = 0; i < MAX_RESOURCES; i++) {
-            max[actualNumberOfCustomers][i] = 0;
+    // Initialize available resources from command line arguments
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+        available[i] = atoi(argv[i + 1]);
+    }
+
+    // Allocate and initialize maximum, allocation, and need matrices
+    maximum = (int **)malloc(NUMBER_OF_CUSTOMERS * sizeof(int *));
+    allocation = (int **)malloc(NUMBER_OF_CUSTOMERS * sizeof(int *));
+    need = (int **)malloc(NUMBER_OF_CUSTOMERS * sizeof(int *));
+    if (maximum == NULL || allocation == NULL || need == NULL) {
+        perror("Failed to allocate memory for matrices");
+        exit(EXIT_FAILURE);
+    }
+
+    for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
+        maximum[i] = (int *)malloc(NUMBER_OF_RESOURCES * sizeof(int));
+        allocation[i] = (int *)malloc(NUMBER_OF_RESOURCES * sizeof(int));
+        need[i] = (int *)malloc(NUMBER_OF_RESOURCES * sizeof(int));
+        if (maximum[i] == NULL || allocation[i] == NULL || need[i] == NULL) {
+            perror("Failed to allocate memory for matrix rows");
+            exit(EXIT_FAILURE);
         }
 
-        int numParsed = sscanf(line, "%d,%d,%d,%d,%d",
-            &max[actualNumberOfCustomers][0], &max[actualNumberOfCustomers][1],
-            &max[actualNumberOfCustomers][2], &max[actualNumberOfCustomers][3],
-            &max[actualNumberOfCustomers][4]);
-        
-        if (numParsed < 3) {
-            fprintf(stderr, "Invalid format in customer data: %s\n", line);
-        } else {
-            actualNumberOfCustomers++;
+        for (int j = 0; j < NUMBER_OF_RESOURCES; j++) {
+            maximum[i][j] = 0;
+            allocation[i][j] = 0;
+            need[i][j] = 0;
         }
+    }
+    printf("Available resources: ");
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+        printf("%d ", available[i]);
+    }
+    printf("\n");
+}
+
+bool is_number(const char *str) {
+    char *endptr;
+    long val = strtol(str, &endptr, 10);
+    return endptr != str && *endptr == '\0' && val <= INT_MAX && val >= INT_MIN;
+}
+
+void read_customer_file(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        fprintf(stderr, "Error opening customer.txt: %s\n", strerror(errno));
+        exit(EXIT_FAILURE);
+    }
+
+    for (int customer_id = 0; customer_id < NUMBER_OF_CUSTOMERS; customer_id++) {
+        for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+            if (fscanf(file, "%d,", &maximum[customer_id][i]) != 1) {
+                fprintf(stderr, "Error reading customer.txt at line %d, resource %d\n", customer_id + 1, i + 1);
+                exit(EXIT_FAILURE);
+            }
+            allocation[customer_id][i] = 0; // Initialize allocation to 0
+            need[customer_id][i] = maximum[customer_id][i]; // Need is initially equal to maximum
+        }
+    }
+    for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
+    printf("Customer %d maximum demand: ", i);
+    for (int j = 0; j < NUMBER_OF_RESOURCES; j++) {
+        printf("%d ", maximum[i][j]);
+    }
+    printf("\n");
     }
 
     fclose(file);
 }
 
-void readCommandData(const char* filename, int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
-    FILE *file = fopen(filename, "r");
-    if (!file) {
-        fprintf(stderr, "Failed to open %s for reading\n", filename);
-        return;
-    }
-
-    char line[100], commandStr[3];
-    int customerNum, request[MAX_RESOURCES];
-    
-    while (fgets(line, sizeof(line), file)) {
-        if (sscanf(line, "%s", commandStr) != 1) {
-            continue;
-        }
-
-        if (strcmp(commandStr, "*") == 0) {
-            outputSystemState(numberOfResources, MAX_CUSTOMERS, available, alloc, max, need);
-            continue;
-        }
-
-        if (sscanf(line, "%s %d %d %d %d", commandStr, &customerNum, &request[0], &request[1], &request[2]) != 5) {
-            fprintf(stderr, "Invalid command format in line: %s\n", line);
-            continue;
-        }
-
-        if (strcmp(commandStr, "RQ") == 0) {
-            processRequest(customerNum, request, numberOfResources, available, alloc, max, need);
-        } else if (strcmp(commandStr, "RL") == 0) {
-            releaseResources(customerNum, request, numberOfResources, available, alloc);
+bool is_request_valid(int customer_id, int request[]) {
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+        if (request[i] > need[customer_id][i]) {
+            return false;
         }
     }
-
-    fclose(file);
+    return true;
 }
 
+bool is_enough_resources(int request[]) {
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+        if (request[i] > available[i]) {
+            return false;
+        }
+    }
+    return true;
+}
 
-bool isSafeState(int numberOfResources, int numberOfCustomers, int available[], int max[][MAX_RESOURCES], int alloc[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
-    int work[numberOfResources];
-    for (int i = 0; i < numberOfResources; i++) {
+bool is_release_valid(int customer_id, int release[]) {
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+        if (release[i] > allocation[customer_id][i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool is_safe_state() {
+    int work[NUMBER_OF_RESOURCES];
+    bool finish[NUMBER_OF_CUSTOMERS];
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
         work[i] = available[i];
     }
-
-    bool finish[numberOfCustomers];
-    for (int i = 0; i < numberOfCustomers; i++) {
+    for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
         finish[i] = false;
     }
 
-    bool found;
-    do {
-        found = false;
-        for (int i = 0; i < numberOfCustomers; i++) {
+    while (true) {
+        bool found = false;
+        for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
             if (!finish[i]) {
-                bool canSatisfy = true;
-                for (int j = 0; j < numberOfResources; j++) {
+                bool can_allocate = true;
+                for (int j = 0; j < NUMBER_OF_RESOURCES; j++) {
                     if (need[i][j] > work[j]) {
-                        canSatisfy = false;
+                        can_allocate = false;
                         break;
                     }
                 }
 
-                if (canSatisfy) {
-                    for (int j = 0; j < numberOfResources; j++) {
-                        work[j] += alloc[i][j];
+                if (can_allocate) {
+                    for (int j = 0; j < NUMBER_OF_RESOURCES; j++) {
+                        work[j] += allocation[i][j];
                     }
                     finish[i] = true;
                     found = true;
                 }
             }
         }
-    } while (found);
 
-    for (int i = 0; i < numberOfCustomers; i++) {
+        if (!found) {
+            break;
+        }
+    }
+
+    for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
         if (!finish[i]) {
             return false;
         }
     }
-
     return true;
 }
 
-void processRequest(int customerNum, int request[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
-    FILE *file = fopen("result.txt", "a"); // Append mode
-
-    for (int i = 0; i < numberOfResources; i++) {
-        if (request[i] < 0 || request[i] > need[customerNum][i] || request[i] > available[i]) {
-            fprintf(file, "The customer %d request cannot be granted.\n", customerNum);
-            fclose(file);
-            return;
-        }
-    }
-
-    for (int i = 0; i < numberOfResources; i++) {
-        available[i] -= request[i];
-        alloc[customerNum][i] += request[i];
-        need[customerNum][i] -= request[i];
-    }
-
-    if (!isSafeState(numberOfResources, MAX_CUSTOMERS, available, max, alloc, need)) {
-        for (int i = 0; i < numberOfResources; i++) {
-            available[i] += request[i];
-            alloc[customerNum][i] -= request[i];
-            need[customerNum][i] += request[i];
-        }
-        fprintf(file, "The request from customer %d cannot be granted as it leads to an unsafe state.\n", customerNum);
-    } else {
-        fprintf(file, "Allocate to customer %d the resources", customerNum);
-        for (int i = 0; i < numberOfResources; i++) {
-            fprintf(file, " %d", request[i]);
-        }
-        fprintf(file, "\n");
-    }
-
-    fclose(file);
-}
-
-
-void releaseResources(int customerNum, int release[], int numberOfResources, int available[], int alloc[][MAX_RESOURCES]) {
-    FILE *file = fopen("result.txt", "a"); // Append mode
-
-    for (int i = 0; i < numberOfResources; i++) {
-        if (release[i] < 0 || release[i] > alloc[customerNum][i]) {
-            fprintf(file, "Release request from customer %d cannot be granted.\n", customerNum);
-            fclose(file);
-            return;
-        }
-    }
-
-    fprintf(file, "Release from customer %d the resources", customerNum);
-    for (int i = 0; i < numberOfResources; i++) {
-        fprintf(file, " %d", release[i]);
-        available[i] += release[i];
-        alloc[customerNum][i] -= release[i];
-    }
-    fprintf(file, "\n");
-
-    fclose(file);
-}
-
-void outputSystemState(int numberOfResources, int actualNumberOfCustomers, int available[], int alloc[][MAX_RESOURCES], int max[][MAX_RESOURCES], int need[][MAX_RESOURCES]) {
-    FILE *fp = fopen("result.txt", "a"); // Open in append mode
-    if (fp == NULL) {
-        fprintf(stderr, "Error opening file result.txt\n");
+void process_request(int customer_id, int request[]) {
+    if (!is_request_valid(customer_id, request)) {
+        fprintf(output_file, "The customer %d request was denied because it exceeds its maximum need\n", customer_id);
         return;
     }
 
-    fprintf(fp, "\nCurrent System State:\n");
-
-    fprintf(fp, "AVAILABLE RESOURCES: ");
-    for (int i = 0; i < numberOfResources; i++) {
-        fprintf(fp, "%d ", available[i]);
-    }
-    fprintf(fp, "\n\n");
-
-    fprintf(fp, "CUSTOMER | MAXIMUM DEMAND | CURRENT ALLOCATION | CURRENT NEED\n");
-    for (int i = 0; i < actualNumberOfCustomers; i++) {
-        fprintf(fp, "   %d    |    ", i);
-        for (int j = 0; j < numberOfResources; j++) {
-            fprintf(fp, "%d ", max[i][j]);
-        }
-        fprintf(fp, "   |    ");
-        for (int j = 0; j < numberOfResources; j++) {
-            fprintf(fp, "%d ", alloc[i][j]);
-        }
-        fprintf(fp, "   |    ");
-        for (int j = 0; j < numberOfResources; j++) {
-            fprintf(fp, "%d ", need[i][j]);
-        }
-        fprintf(fp, "\n");
+    if (!is_enough_resources(request)) {
+        fprintf(output_file, "The resources are not enough for customer %d request\n", customer_id);
+        return;
     }
 
-    fclose(fp);
+    // Tentatively allocate resources
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+        available[i] -= request[i];
+        allocation[customer_id][i] += request[i];
+        need[customer_id][i] -= request[i];
+    }
+
+    if (!is_safe_state()) {
+        // Rollback allocation if it leads to an unsafe state
+        for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+            available[i] += request[i];
+            allocation[customer_id][i] -= request[i];
+            need[customer_id][i] += request[i];
+        }
+        fprintf(output_file, "The customer %d request was denied because it results in an unsafe state\n", customer_id);
+    } else {
+        fprintf(output_file, "Allocate to customer %d the resources", customer_id);
+        for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+            fprintf(output_file, " %d", request[i]);
+        }
+        fprintf(output_file, "\n");
+    }
 }
 
-void calculateNeedArray() {
-    for (int i = 0; i < numberOfCustomers; i++) {
-        for (int j = 0; j < numberOfResources; j++) {
-            need[i][j] = max[i][j] - alloc[i][j];
-        }
+void process_command(const char *command) {
+    char cmd_type[3];
+    int customer_id;
+    int resources[NUMBER_OF_RESOURCES];
+
+    // Initialize resources array to zero
+    memset(resources, 0, sizeof(resources));
+
+    if (strcmp(command, "*\n") == 0) {  // Check for '*' command
+        print_system_state();
+        return;
     }
+
+    if (sscanf(command, "%2s %d", cmd_type, &customer_id) == 2) {
+        // Validate customer_id
+        if (customer_id < 0 || customer_id >= NUMBER_OF_CUSTOMERS) {
+            fprintf(stderr, "Invalid customer ID: %d\n", customer_id);
+            return;
+        }
+
+        // Parse resource amounts (either request or release)
+        char *token = strtok((char *)command + 4, " ");
+        for (int i = 0; token != NULL && i < NUMBER_OF_RESOURCES; i++) {
+            resources[i] = atoi(token);
+            token = strtok(NULL, " ");
+        }
+
+        // Process based on command type
+        if (strcmp(cmd_type, "RQ") == 0) {
+            process_request(customer_id, resources);
+        } else if (strcmp(cmd_type, "RL") == 0) {
+            process_release(customer_id, resources);
+        }
+    } else {
+        fprintf(stderr, "Invalid command format: %s\n", command);
+    }
+}
+
+void process_release(int customer_id, int release[]) {
+    if (!is_release_valid(customer_id, release)) {
+        printf("Release from customer %d was denied because it exceeds its current allocation\n", customer_id);
+        return;
+    }
+
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+        allocation[customer_id][i] -= release[i];
+        available[i] += release[i];
+        need[customer_id][i] += release[i];
+    }
+
+    printf("Release from customer %d the resources", customer_id);
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+        printf(" %d", release[i]);
+    }
+    printf("\n");
+}
+
+void read_commands_file(const char *filename) {
+    FILE *file = fopen(filename, "r");
+    if (file == NULL) {
+        perror("Failed to open commands.txt");
+        exit(EXIT_FAILURE);
+    }
+
+    char command[256];
+    while (fgets(command, sizeof(command), file) != NULL) {
+        process_command(command);
+    }
+
+    fclose(file);
+}
+
+void print_system_state() {
+    // Header
+    fprintf(output_file, "MAXIMUM | ALLOCATION | NEED\n");
+
+    // Printing Maximum, Allocation, and Need side by side
+    for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
+        // Maximum
+        for (int j = 0; j < NUMBER_OF_RESOURCES; j++) {
+            fprintf(output_file, "%d ", maximum[i][j]);
+        }
+        fprintf(output_file, "| ");
+
+        // Allocation
+        for (int j = 0; j < NUMBER_OF_RESOURCES; j++) {
+            fprintf(output_file, "%d ", allocation[i][j]);
+        }
+        fprintf(output_file, "| ");
+
+        // Need
+        for (int j = 0; j < NUMBER_OF_RESOURCES; j++) {
+            fprintf(output_file, "%d ", need[i][j]);
+        }
+        fprintf(output_file, "\n");
+    }
+
+    // Print Available Resources
+    fprintf(output_file, "AVAILABLE ");
+    for (int i = 0; i < NUMBER_OF_RESOURCES; i++) {
+        fprintf(output_file, "%d ", available[i]);
+    }
+    fprintf(output_file, "\n");
 }
 
 int main(int argc, char *argv[]) {
     if (argc < 2) {
-        printf("Error: Insufficient command line arguments provided.\n");
-        return 1;
+        printf("Usage: %s <resource1> <resource2> ... <resourceN>\n", argv[0]);
+        return -1;
     }
 
-    int *resourceArray = parseCommandLineArguments(argc, argv, &numberOfResources);
-
-    for (int i = 0; i < numberOfResources; i++) {
-        available[i] = resourceArray[i];
+    // Validate command-line arguments
+    for (int i = 1; i < argc; i++) {
+        if (!is_number(argv[i])) {
+            printf("Incompatibility between command line arguments\n");
+            return -1;
+        }
     }
 
-    readCustomerData("customer.txt");
-    calculateNeedArray();
-    readCommandData("commands.txt", numberOfResources, available, alloc, max, need);
+    NUMBER_OF_RESOURCES = argc - 1;
 
-    free(resourceArray);
+    // Check if customer.txt can be accessed
+    if (access("customer.txt", F_OK) == -1) {
+        printf("Fail to read customer.txt\n");
+        return -1;
+    }
+
+    // Determine the number of customers from customer.txt
+    NUMBER_OF_CUSTOMERS = count_customers("customer.txt");
+
+    // Initialize system state
+    initialize_system_state(argv);
+
+    // Open the output file
+    output_file = fopen("result.txt", "w");
+    if (output_file == NULL) {
+        perror("Failed to open result.txt");
+        return -1;
+    }
+
+    // Read customer file to populate data structures
+    read_customer_file("customer.txt");
+
+    // Check if commands.txt can be accessed
+    if (access("commands.txt", F_OK) == -1) {
+        printf("Fail to read commands.txt\n");
+        fclose(output_file);
+        return -1;
+    }
+
+    // Read and process commands
+    read_commands_file("commands.txt");
+
+    // Close the output file
+    fclose(output_file);
+
+    // Free dynamically allocated memory
+    for (int i = 0; i < NUMBER_OF_CUSTOMERS; i++) {
+        free(maximum[i]);
+        free(allocation[i]);
+        free(need[i]);
+    }
+    free(maximum);
+    free(allocation);
+    free(need);
+    free(available);
+
+    fclose(output_file);
     return 0;
 }
-
-

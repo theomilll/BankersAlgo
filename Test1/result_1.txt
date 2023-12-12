@@ -1,0 +1,36 @@
+Allocate to customer 0 the resources 0 2 1 0 
+The customer 2 request 3 0 2 2 was denied because exceed its maximum need
+The customer 1 request 2 0 3 1 was denied because exceed its maximum need
+MAXIMUM | ALLOCATION | NEED
+7 5 3 3 | 0 2 1 0    | 7 3 2 3 
+3 2 2 2 | 0 0 0 0    | 3 2 2 2 
+9 0 2 1 | 0 0 0 0    | 9 0 2 1 
+2 2 2 0 | 0 0 0 0    | 2 2 2 0 
+4 3 3 3 | 0 0 0 0    | 4 3 3 3 
+0 4 2 3 | 0 0 0 0    | 0 4 2 3 
+AVAILABLE 10 3 6 8 
+Allocate to customer 1 the resources 2 0 0 1 
+Allocate to customer 4 the resources 0 0 2 3 
+Release from customer 0 the resources 0 1 1 0 
+The customer 3 request 2 1 1 1 was denied because exceed its maximum need
+MAXIMUM | ALLOCATION | NEED
+7 5 3 3 | 0 1 0 0    | 7 4 3 3 
+3 2 2 2 | 2 0 0 1    | 1 2 2 1 
+9 0 2 1 | 0 0 0 0    | 9 0 2 1 
+2 2 2 0 | 0 0 0 0    | 2 2 2 0 
+4 3 3 3 | 0 0 2 3    | 4 3 1 0 
+0 4 2 3 | 0 0 0 0    | 0 4 2 3 
+AVAILABLE 8 4 5 4 
+The customer 4 request 4 0 0 2 was denied because exceed its maximum need
+The customer 0 released 0 1 1 0 was denied because exceed its maximum allocation
+The customer 1 request 1 0 2 2 was denied because exceed its maximum need
+Allocate to customer 0 the resources 0 2 0 1 
+MAXIMUM | ALLOCATION | NEED
+7 5 3 3 | 0 3 0 1    | 7 2 3 2 
+3 2 2 2 | 2 0 0 1    | 1 2 2 1 
+9 0 2 1 | 0 0 0 0    | 9 0 2 1 
+2 2 2 0 | 0 0 0 0    | 2 2 2 0 
+4 3 3 3 | 0 0 2 3    | 4 3 1 0 
+0 4 2 3 | 0 0 0 0    | 0 4 2 3 
+AVAILABLE 8 2 5 3 
+The customer 2 request 0 1 0 0 was denied because exceed its maximum need

@@ -1,0 +1,45 @@
+Allocate to customer 0 the resources 0 2 1 0 2 
+Allocate to customer 2 the resources 3 0 2 1 0 
+The customer 1 request 2 1 0 2 2 was denied because result in an unsafe state
+MAXIMUM   | ALLOCATION | NEED
+7 5 3 3 7 | 0 2 1 0 2  | 7 3 2 3 5 
+3 2 2 2 3 | 0 0 0 0 0  | 3 2 2 2 3 
+9 0 2 1 0 | 3 0 2 1 0  | 6 0 0 0 0 
+2 2 2 0 2 | 0 0 0 0 0  | 2 2 2 0 2 
+4 3 3 3 1 | 0 0 0 0 0  | 4 3 3 3 1 
+0 4 2 3 1 | 0 0 0 0 0  | 0 4 2 3 1 
+AVAILABLE 7 3 0 7 5 
+The customer 1 released 2 0 0 1 1 was denied because exceed its maximum allocation
+The customer 4 request 3 0 0 3 1 was denied because result in an unsafe state
+Release from customer 0 the resources 0 1 1 0 0 
+The customer 3 request 2 1 1 0 1 was denied because result in an unsafe state
+MAXIMUM   | ALLOCATION | NEED
+7 5 3 3 7 | 0 1 0 0 2  | 7 4 3 3 5 
+3 2 2 2 3 | 0 0 0 0 0  | 3 2 2 2 3 
+9 0 2 1 0 | 3 0 2 1 0  | 6 0 0 0 0 
+2 2 2 0 2 | 0 0 0 0 0  | 2 2 2 0 2 
+4 3 3 3 1 | 0 0 0 0 0  | 4 3 3 3 1 
+0 4 2 3 1 | 0 0 0 0 0  | 0 4 2 3 1 
+AVAILABLE 7 4 1 7 5 
+The customer 4 request 4 0 0 2 1 was denied because result in an unsafe state
+The customer 0 released 0 1 1 0 3 was denied because exceed its maximum allocation
+The customer 1 request 1 0 2 2 5 was denied because exceed its maximum need
+Allocate to customer 0 the resources 0 2 0 1 0 
+MAXIMUM   | ALLOCATION | NEED
+7 5 3 3 7 | 0 3 0 1 2  | 7 2 3 2 5 
+3 2 2 2 3 | 0 0 0 0 0  | 3 2 2 2 3 
+9 0 2 1 0 | 3 0 2 1 0  | 6 0 0 0 0 
+2 2 2 0 2 | 0 0 0 0 0  | 2 2 2 0 2 
+4 3 3 3 1 | 0 0 0 0 0  | 4 3 3 3 1 
+0 4 2 3 1 | 0 0 0 0 0  | 0 4 2 3 1 
+AVAILABLE 7 2 1 6 5 
+Release from customer 2 the resources 0 0 2 0 0 
+Allocate to customer 2 the resources 2 0 1 0 0 
+MAXIMUM   | ALLOCATION | NEED
+7 5 3 3 7 | 0 3 0 1 2  | 7 2 3 2 5 
+3 2 2 2 3 | 0 0 0 0 0  | 3 2 2 2 3 
+9 0 2 1 0 | 5 0 1 1 0  | 4 0 1 0 0 
+2 2 2 0 2 | 0 0 0 0 0  | 2 2 2 0 2 
+4 3 3 3 1 | 0 0 0 0 0  | 4 3 3 3 1 
+0 4 2 3 1 | 0 0 0 0 0  | 0 4 2 3 1 
+AVAILABLE 5 2 2 6 5 
